@@ -8,6 +8,10 @@
 
 ---
 
+<img width="1241" height="599" alt="image" src="https://github.com/user-attachments/assets/80249373-5437-424f-8dbc-2eb0c378c240" />
+
+---
+
 ## 주요 기능
 
 | 기능 | 설명 |
