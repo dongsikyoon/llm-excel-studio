@@ -5,8 +5,9 @@ _DEFAULTS: dict = {
     "ollama_host": "http://localhost:11434",
     "openai_api_key": "",
     "gemini_api_key": "",
-    "selected_model": "qwen3:14b-q4_K_M",
-    "persona": "analyst",
+    "selected_model": "qwen3:32b-q4_K_M",
+    "code_model": "qwen2.5-coder:32b",
+    "current_chat_id": "",
     "messages": [],
     "execution_results": {},
 }

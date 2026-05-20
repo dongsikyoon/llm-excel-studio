@@ -102,9 +102,12 @@ def _validate(code: str) -> list[str]:
 
 
 def _make_safe_import():
+    # numpy·pandas는 np/pd로 이미 제공되므로 내부 서브모듈 import도 허용
+    _INTERNAL_OK = {"numpy", "pandas", "openpyxl", "dateutil", "pytz"}
+
     def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
         root = name.split(".")[0]
-        if root in _ALLOWED_MODULES:
+        if root in _ALLOWED_MODULES or root in _INTERNAL_OK:
             return importlib.import_module(name)
         raise ImportError(f"'{name}' 모듈은 사용할 수 없습니다.")
     return _safe_import
@@ -141,23 +144,83 @@ def _make_save(saved: list[str], ns: dict):
             name = f"{stem}_{ts}{suffix}"
         if suffix not in (".xlsx", ".csv"):
             raise ValueError(f"지원하지 않는 형식: {suffix} (.xlsx 또는 .csv만 가능)")
+        # 저장 전 정수형 정리
+        df = df.copy()
+        for col in df.select_dtypes(include="float").columns:
+            non_null = df[col].dropna()
+            if len(non_null) > 0 and (non_null % 1 == 0).all():
+                try:
+                    df[col] = df[col].astype("Int64")
+                except Exception:
+                    pass
+
         dest = RESULT_DIR / name
         if suffix == ".csv":
             df.to_csv(dest, index=False)
         else:
             import openpyxl
-            from openpyxl.styles import numbers as xl_numbers
             df.to_excel(dest, index=False)
             wb = openpyxl.load_workbook(dest)
             ws = wb.active
-            num_cols = [
+            num_cols = {
                 i + 1 for i, col in enumerate(df.columns)
                 if pd.api.types.is_numeric_dtype(df[col])
-            ]
-            for row in ws.iter_rows(min_row=2):
+            }
+            text_cols = {
+                i + 1 for i, col in enumerate(df.columns)
+                if not pd.api.types.is_numeric_dtype(df[col])
+            }
+
+            def _cell_width(value) -> int:
+                """한글(2) + 영문/숫자(1) 기준 표시 너비 계산."""
+                if value is None:
+                    return 0
+                w = 0
+                for ch in str(value):
+                    # Hangul Syllables / Jamo / CJK 등
+                    cp = ord(ch)
+                    if (0xAC00 <= cp <= 0xD7AF or 0x1100 <= cp <= 0x11FF or
+                            0x3130 <= cp <= 0x318F or 0x3400 <= cp <= 0x9FFF):
+                        w += 2
+                    else:
+                        w += 1
+                return w
+
+            # 천단위 콤마 + 컬럼 너비 자동 조정
+            col_widths: dict[int, int] = {}
+            for row in ws.iter_rows():
                 for cell in row:
-                    if cell.column in num_cols:
+                    if cell.column in num_cols and cell.row > 1:
                         cell.number_format = "#,##0"
+                    col_widths[cell.column] = max(
+                        col_widths.get(cell.column, 0),
+                        _cell_width(cell.value),
+                    )
+            for col_idx, width in col_widths.items():
+                col_letter = openpyxl.utils.get_column_letter(col_idx)
+                ws.column_dimensions[col_letter].width = min(max(width + 2, 8), 60)
+
+            # 텍스트 컬럼에서 연속된 같은 값 → 셀 병합 (원본 양식 복원)
+            for col_idx in text_cols:
+                col_letter = openpyxl.utils.get_column_letter(col_idx)
+                merge_start = 2
+                prev_val = ws.cell(row=2, column=col_idx).value
+                for row_idx in range(3, len(df) + 3):
+                    cur_val = ws.cell(row=row_idx, column=col_idx).value
+                    if cur_val != prev_val:
+                        if row_idx - merge_start > 1:
+                            ws.merge_cells(f"{col_letter}{merge_start}:{col_letter}{row_idx-1}")
+                            ws.cell(row=merge_start, column=col_idx).alignment = \
+                                openpyxl.styles.Alignment(vertical="center", wrap_text=True)
+                        merge_start = row_idx
+                        prev_val = cur_val
+                # 마지막 그룹 처리
+                last_row = len(df) + 1
+                if last_row - merge_start > 0:
+                    ws.merge_cells(f"{col_letter}{merge_start}:{col_letter}{last_row}")
+                    ws.cell(row=merge_start, column=col_idx).alignment = \
+                        openpyxl.styles.Alignment(vertical="center", wrap_text=True)
+
             wb.save(dest)
         saved.append(name)
 
@@ -263,6 +326,15 @@ def execute(code: str, timeout: int = 30) -> ExecutionResult:
     result_df = ns.get("result")
     if not isinstance(result_df, pd.DataFrame):
         result_df = None
+    else:
+        # float 컬럼 중 소수점 없는 것(121.0 등) → 정수 변환
+        for col in result_df.select_dtypes(include="float").columns:
+            non_null = result_df[col].dropna()
+            if len(non_null) > 0 and (non_null % 1 == 0).all():
+                try:
+                    result_df[col] = result_df[col].astype("Int64")
+                except Exception:
+                    pass
 
     return ExecutionResult(
         success=True,

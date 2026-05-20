@@ -16,35 +16,34 @@ init()
 
 st.markdown("""
 <style>
-#MainMenu, footer {visibility: hidden;}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+* { font-family: 'Inter', sans-serif; }
+#MainMenu, footer { visibility: hidden; }
 [data-testid="collapsedControl"] { visibility: visible !important; }
-[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0d1117 0%, #161b22 100%);
-    border-right: 1px solid #21262d;
-}
+.stApp { background: #09090b; }
+[data-testid="stSidebar"] { background: #0f0f12; border-right: 1px solid #1e1e24; }
+hr { border-color: #1e1e24 !important; }
 .file-card {
-    background: #161b22;
-    border: 1px solid #30363d;
-    border-radius: 10px;
+    background: #0f0f12;
+    border: 1px solid #27272a;
+    border-radius: 12px;
     padding: 14px 16px;
-    margin-bottom: 10px;
-    transition: border-color 0.2s;
+    margin-bottom: 8px;
+    transition: border-color 0.15s;
 }
-.file-card:hover { border-color: #58a6ff; }
-.file-name { font-weight: 600; color: #e6edf3; font-size: 0.95rem; }
-.file-meta { color: #8b949e; font-size: 0.8rem; margin-top: 2px; }
+.file-card:hover { border-color: #3f3f46; }
+.file-name { font-weight: 600; color: #fafafa; font-size: 0.9rem; }
+.file-meta { color: #71717a; font-size: 0.78rem; margin-top: 3px; }
 .result-card {
-    background: #0d1117;
-    border: 1px solid #238636;
-    border-radius: 10px;
+    background: #0f0f12;
+    border: 1px solid #14532d;
+    border-radius: 12px;
     padding: 14px 16px;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
 }
-.section-title {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #e6edf3;
-    margin-bottom: 12px;
+[data-testid="stMetric"] {
+    background: #0f0f12; border: 1px solid #1e1e24;
+    border-radius: 10px; padding: 12px 16px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -133,6 +132,13 @@ with col_left:
                 _safe = df_preview.copy()
                 for c in _safe.select_dtypes(include="object").columns:
                     _safe[c] = _safe[c].astype(str)
+                for c in _safe.select_dtypes(include=["float64", "float32"]).columns:
+                    _nn = _safe[c].dropna()
+                    if len(_nn) > 0 and (_nn % 1 == 0).all():
+                        try:
+                            _safe[c] = _safe[c].astype("Int64")
+                        except Exception:
+                            pass
                 st.dataframe(_safe, width="stretch")
 
 with col_right:

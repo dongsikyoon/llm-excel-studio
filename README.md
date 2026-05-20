@@ -8,17 +8,40 @@
 
 ---
 
+## 스크린샷
+
+![채팅 메인화면](img/1.png)
+![파일 통합 결과](img/2.png)
+![집행률 분석](img/3.png)
+![예산 비교](img/4.png)
+![파일 관리](img/5.png)
+![모델 설정](img/6.png)
+
+---
+
 ## 주요 기능
 
 | 기능 | 설명 |
 |------|------|
 | 💬 **자연어 채팅** | 자연어로 엑셀 파일 분석·병합·처리 요청 |
 | 🤖 **다중 AI 모델** | Ollama (로컬/원격) · OpenAI · Google Gemini |
-| 👤 **페르소나** | 데이터 분석가 · 회계담당자 · 연구원 · 일반사무 |
+| 🔀 **듀얼 모델 라우팅** | 대화용 모델 / 코드 생성 전용 모델 분리 운용 |
 | 📁 **파일 관리** | Excel/CSV 업로드·미리보기·삭제, 결과 다운로드 |
 | 🔁 **자동 재시도** | 코드 실행 실패 시 AI가 자동으로 최대 5회 수정·재실행 |
+| 💬 **채팅 히스토리** | 대화 목록 저장·복원, 앱 재시작 후에도 유지 |
 | 🔒 **샌드박스 실행** | AST 검증 후 격리 실행, 위험 모듈 차단 |
-| 💾 **결과 저장** | 숫자 천단위 콤마 포함 Excel 자동 저장 |
+| 💾 **Excel 자동 포맷** | 천단위 콤마, 컬럼 너비 자동 조정, 셀 병합 복원 |
+| 📥 **모델 다운로드 UI** | Ollama Hub에서 앱 안에서 직접 모델 다운로드 |
+
+---
+
+## 예실대비표 전용 기능
+
+| 버튼 | 기능 |
+|------|------|
+| 📂 **파일 통합** | 여러 파일을 비목분류 순서 유지하며 합산 통합, 소계·요약행 자동 생성 |
+| 📊 **집행률 분석** | 파일별 비목별 집행률(%) 계산, 파일명 소제목으로 구분 출력 |
+| 🔍 **예산 비교** | 이월·당해 예산 비교, 잔액 큰 순 정렬, 파일명 컬럼 포함 |
 
 ---
 
@@ -30,7 +53,8 @@ cd llm-excel-studio
 pip install -r requirements.txt
 
 # Ollama 로컬 모델 사용 시
-ollama pull qwen3:14b
+ollama pull qwen3:32b      # 대화 모델 (권장)
+ollama pull qwen2.5-coder:32b  # 코드 생성 모델 (권장)
 
 streamlit run app.py
 # → http://localhost:8501
@@ -41,12 +65,12 @@ streamlit run app.py
 ## 서버 배포 (백그라운드 실행)
 
 ```bash
-chmod +x run.sh stop.sh
-./run.sh           # 기본 포트 8501
-./run.sh 8080      # 포트 지정
+chmod +x scripts/run.sh scripts/stop.sh
+./scripts/run.sh           # 기본 포트 8501
+./scripts/run.sh 8080      # 포트 지정
 
-tail -f streamlit.log   # 로그 확인
-./stop.sh               # 종료
+tail -f logs/streamlit.log   # 로그 확인
+./scripts/stop.sh            # 종료
 ```
 
 - 파일 수정 시 **자동 새로고침** (hot-reload)
@@ -56,27 +80,18 @@ tail -f streamlit.log   # 로그 확인
 
 ## AI 모델 설정
 
-앱 실행 후 사이드바 또는 **⚙️ Settings** 에서 설정합니다.
+앱 실행 후 **⚙️ Settings** 또는 사이드바에서 설정합니다.
 
 | 제공자 | 설정 방법 |
 |--------|----------|
-| **Ollama** | 서버 URL 입력 → 사이드바에서 모델 선택 (자동 로드) |
+| **Ollama** | 서버 URL → 사이드바에서 모델 선택 (자동 로드) |
 | **OpenAI** | API Key + 모델 선택 |
 | **Gemini** | API Key + 모델 선택 |
 
+- **대화 모델**: 일반 대화·분석 설명용 (기본: `qwen3:32b`)
+- **코드 생성 모델**: 파일 업로드 시 자동 전환 (기본: `qwen2.5-coder:32b`)
+
 > **보안**: API Key는 UI에서만 입력하세요. 코드에 절대 넣지 마세요.
-
----
-
-## 사용 예시
-
-1. **📁 Files** 에서 엑셀 파일 업로드
-2. **💬 Chat** 에서 요청:
-   - `"5개 파일을 하나로 합치고 동일 항목은 평균으로 계산해줘"`
-   - `"비목별 집행률을 계산해줘"`
-   - `"이월예산과 당해예산 잔액이 큰 순으로 정렬해줘"`
-3. **▶ 코드 실행** → 실패 시 AI가 자동으로 수정·재실행
-4. 결과 파일 다운로드
 
 ---
 
@@ -87,12 +102,12 @@ llm-excel-studio/
 ├── app.py                  # 메인 채팅 페이지
 ├── pages/
 │   ├── 1_Files.py          # 파일 관리
-│   └── 2_Settings.py       # 모델 설정
+│   └── 2_Settings.py       # 모델 설정 및 다운로드
 ├── core/
-│   ├── llm/                # Ollama · OpenAI · Gemini 클라이언트
-│   ├── prompt/             # 페르소나 · 시스템 프롬프트 생성
+│   ├── llm/                # Ollama · OpenAI · Gemini 클라이언트 + 듀얼 라우팅
+│   ├── prompt/             # 시스템 프롬프트 생성
 │   ├── executor/           # AST 샌드박스 + 자동 재시도
-│   └── files/              # 파일 I/O · 병합셀 전처리 · LLM 컨텍스트
-├── run.sh / stop.sh        # 서버 실행/종료
+│   └── files/              # 파일 I/O · 병합셀 전처리 · 채팅 히스토리
+├── scripts/                # run.sh / stop.sh
 └── requirements.txt
 ```

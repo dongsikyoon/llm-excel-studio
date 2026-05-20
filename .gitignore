@@ -1,10 +1,10 @@
-# 업로드/결과 파일
+# 업로드/결과/데이터 파일
 uploads/
 results/
+data/
 
 # 실행 로그 및 PID
-streamlit.log
-streamlit.pid
+logs/
 *.log
 *.pid
 
