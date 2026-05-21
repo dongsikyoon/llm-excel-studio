@@ -10,6 +10,7 @@ _DEFAULTS: dict = {
     "current_chat_id": "",
     "messages": [],
     "execution_results": {},
+    "final_codes": {},          # 재시도 후 최종 실행된 코드
 }
 
 

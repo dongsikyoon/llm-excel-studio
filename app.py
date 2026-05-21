@@ -388,18 +388,19 @@ def _ai_fix_code(failed_code: str, error: str) -> str | None:
         return None
 
 
-def _execute_with_retry(code: str, max_retries: int = 5) -> tuple[ExecutionResult, int]:
-    """최대 max_retries 회 자동 재시도. (결과, 시도 횟수) 반환."""
+def _execute_with_retry(code: str, max_retries: int = 5) -> tuple[ExecutionResult, int, str]:
+    """최대 max_retries 회 자동 재시도. (결과, 시도 횟수, 최종 코드) 반환."""
+    original = code
     for attempt in range(1, max_retries + 1):
         result = execute(code)
         if result.success:
-            return result, attempt
+            return result, attempt, code
         if attempt < max_retries:
             fixed = _ai_fix_code(code, result.error)
             if not fixed:
                 break
             code = fixed
-    return result, attempt
+    return result, attempt, code
 
 
 def _export_md() -> str:
@@ -580,6 +581,12 @@ def _render_code_controls(idx: int, content: str) -> None:
                         file_name=fname,
                         key=f"dl_{fname}_{idx}",
                     )
+            # 재시도로 수정된 코드가 있으면 표시
+            final_code = st.session_state.final_codes.get(idx)
+            original_codes = _extract_code(content)
+            if final_code and original_codes and final_code.strip() != original_codes[0].strip():
+                with st.expander("🔧 AI가 자동 수정한 최종 코드"):
+                    st.code(final_code, language="python")
             st.success("✅ 실행 완료")
         else:
             st.error(f"❌ 오류\n\n{result.error}")
@@ -598,7 +605,8 @@ def _render_code_controls(idx: int, content: str) -> None:
         if st.button("🔄 재실행", key=f"exec_{idx}", type="secondary"):
             with st.spinner("코드 실행 중..."):
                 try:
-                    r, attempts = _execute_with_retry(_extract_code(content)[0])
+                    r, attempts, final_code = _execute_with_retry(_extract_code(content)[0])
+                    st.session_state.final_codes[idx] = final_code
                     if not r.success:
                         r.error = f"[{attempts}회 시도 후 실패]\n\n{r.error}"
                 except Exception as e:
@@ -636,8 +644,16 @@ if prompt:
     _user_bubble(prompt)
 
     file_ctx = build_file_context()
-    # 파일 있으면 코드 전용 모델, 없으면 대화 모델로 라우팅
-    client = get_code_client() if file_ctx else get_client()
+
+    # 파일 있어도 단순 대화면 대화 모델, 데이터 처리 요청이면 코드 모델
+    _CODE_KEYWORDS = {
+        "합산", "합치", "통합", "병합", "계산", "정렬", "분석", "추출",
+        "필터", "변환", "집계", "비교", "처리", "저장", "출력", "뽑아",
+        "평균", "합계", "집행률", "더해", "나눠", "곱해", "빼", "구해",
+        "만들어", "작성", "생성", "코드", "엑셀", "파일로",
+    }
+    _needs_code = file_ctx and any(kw in prompt for kw in _CODE_KEYWORDS)
+    client = get_code_client() if _needs_code else get_client()
     if not client:
         provider = st.session_state.get("provider", "?")
         model = st.session_state.get("selected_model", "")
@@ -726,9 +742,10 @@ if prompt:
         if codes:
             msg_idx = len(st.session_state.messages) - 1
             with st.spinner("코드 자동 실행 중..."):
-                r, attempts = _execute_with_retry(codes[0])
+                r, attempts, final_code = _execute_with_retry(codes[0])
             if not r.success:
                 r.error = f"[{attempts}회 시도 후 실패]\n\n{r.error}"
             st.session_state.execution_results[msg_idx] = r
+            st.session_state.final_codes[msg_idx] = final_code
 
         st.rerun()
