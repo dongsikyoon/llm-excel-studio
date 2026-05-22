@@ -4,8 +4,8 @@
 
 **Basic Software Technology** 과제 구현물
 
-### 🌐 [서비스 접속 → http://****-ev1.****:33002](http://****-ev1.****:33002)
-### 📋 [시스템 소개 페이지 → http://****-ev1.****:33002/About](http://****-ev1.****:33002/About)
+### 🌐 서비스 접속 → `http://xxxx-ev1.xxxx:33002`
+### 📋 시스템 소개 → `http://xxxx-ev1.xxxx:33002/About`
 
 ---
 
