@@ -45,18 +45,39 @@ _CODE_RULES = """\
 파일 작업이 아닌 일반 질문은 코드 없이 답변해도 됩니다."""
 
 
-def build_system_prompt(persona_key: str, file_context: str = "") -> str:
+def build_system_prompt(persona_key: str, file_context: str = "", needs_code: bool = False) -> str:
     """Build a rich system prompt from persona + file context + code rules."""
     persona: Persona = PERSONAS.get(persona_key, PERSONAS["analyst"])
 
-    parts = [
-        f"## 역할\n{persona.role}",
-        (
-            f"## 업로드된 파일\n{file_context}"
-            if file_context
-            else "## 업로드된 파일\n현재 업로드된 파일이 없습니다. 일반 질문에 답변하세요."
-        ),
-        _CODE_RULES,
-    ]
+    parts = [f"## 역할\n{persona.role}"]
+
+    if file_context:
+        parts.append(f"## 업로드된 파일\n{file_context}")
+
+    if needs_code:
+        # 데이터 처리 요청 → 샌드박스 코드 규칙 포함
+        parts.append(_CODE_RULES)
+    else:
+        # 일반 대화 → 제약 없이 자유롭게 답변
+        parts.append(
+            "일반 질문에 자유롭게 답변하세요.\n\n"
+            "코드 요청 시 중요 규칙:\n"
+            "1. 코드는 반드시 ```python 블록 안에 작성할 것\n"
+            "2. 이 앱 안에서 직접 실행됨 — 파일 저장, pip install, streamlit run 등 별도 실행 안내 불필요\n"
+            "3. `input()` 사용 불가. 인터랙티브 입력은 `st` 위젯 사용\n"
+            "4. 모든 st 위젯에 고유한 key 지정 필수 (재실행 시 값 유지)\n\n"
+            "사용 가능한 변수: `st` (Streamlit), `pd` (pandas), `np` (numpy), `print()`\n\n"
+            "인터랙티브 코드 예시:\n"
+            "```python\n"
+            "a = st.number_input('숫자 1', value=0.0, key='calc_a')\n"
+            "b = st.number_input('숫자 2', value=0.0, key='calc_b')\n"
+            "op = st.selectbox('연산', ['+', '-', '×', '÷'], key='calc_op')\n"
+            "if st.button('계산', key='calc_btn'):\n"
+            "    if op == '+': st.success(f'{a} + {b} = {a+b}')\n"
+            "    elif op == '-': st.success(f'{a} - {b} = {a-b}')\n"
+            "    elif op == '×': st.success(f'{a} × {b} = {a*b}')\n"
+            "    elif op == '÷': st.success(f'{a} ÷ {b} = {a/b}' if b else '0으로 나눌 수 없습니다')\n"
+            "```"
+        )
 
     return "\n\n".join(parts)

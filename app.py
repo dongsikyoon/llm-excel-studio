@@ -283,6 +283,7 @@ button[kind="secondary"][data-testid*="exec"]:hover {
     border-radius: 14px;
     padding: 4px 8px;
     margin-bottom: 8px;
+    overflow: visible !important;
 }
 
 /* ── 유저 말풍선 (오른쪽) ── */
@@ -369,6 +370,7 @@ def _ai_fix_code(failed_code: str, error: str) -> str | None:
             "content": build_system_prompt(
                 persona_key="analyst",
                 file_context=build_file_context(),
+                needs_code=True,
             ),
         },
         {
@@ -553,7 +555,22 @@ st.divider()
 
 
 def _render_code_controls(idx: int, content: str) -> None:
+    codes = _extract_code(content)
     result = st.session_state.execution_results.get(idx)
+
+    # st. 위젯 코드 → Playground로 안내
+    if codes and "st." in codes[0]:
+        st.markdown(
+            '<div style="font-size:0.82rem;color:#71717a;margin:4px 0 8px 0">'
+            '🧪 이 코드는 인터랙티브 위젯을 사용합니다. Playground에서 실행하세요.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        if st.button("🧪  Playground에서 실행", key=f"to_pg_{idx}", type="primary"):
+            st.session_state["playground_code"] = codes[0]
+            st.session_state["playground_run"] = True
+            st.switch_page("pages/4_Playground.py")
+        return
 
     if result is not None:
         if result.success:
@@ -628,6 +645,14 @@ for idx, msg in enumerate(st.session_state.messages):
         _user_bubble(msg["content"])
     else:
         with st.chat_message("assistant"):
+            if msg.get("model"):
+                st.markdown(
+                    f'<div style="font-size:0.75rem;color:#71717a;margin-bottom:6px;'
+                    f'white-space:nowrap;overflow:visible">'
+                    f'{msg.get("model_type","")} &nbsp;·&nbsp; <code style="color:#a1a1aa;font-size:0.72rem">{msg["model"]}</code>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
             st.markdown(msg["content"])
             _render_code_controls(idx, msg["content"])
 
@@ -647,10 +672,10 @@ if prompt:
 
     # 파일 있어도 단순 대화면 대화 모델, 데이터 처리 요청이면 코드 모델
     _CODE_KEYWORDS = {
-        "합산", "합치", "통합", "병합", "계산", "정렬", "분석", "추출",
-        "필터", "변환", "집계", "비교", "처리", "저장", "출력", "뽑아",
-        "평균", "합계", "집행률", "더해", "나눠", "곱해", "빼", "구해",
-        "만들어", "작성", "생성", "코드", "엑셀", "파일로",
+        "합산", "합치", "통합", "병합", "정렬", "추출",
+        "필터", "변환", "집계", "비교", "처리", "저장",
+        "평균", "합계", "집행률", "뽑아",
+        "엑셀", "파일로", "파일을",
     }
     _needs_code = file_ctx and any(kw in prompt for kw in _CODE_KEYWORDS)
     client = get_code_client() if _needs_code else get_client()
@@ -671,6 +696,7 @@ if prompt:
         system_prompt = build_system_prompt(
             persona_key="analyst",
             file_context=file_ctx,
+            needs_code=_needs_code,
         )
         llm_messages = [
             {"role": "system", "content": system_prompt},
@@ -732,14 +758,21 @@ if prompt:
             suffix = "\n\n_(중지됨)_" if stopped else ""
             content_ph.markdown((full or "_응답 없음_") + suffix)
 
-        # 플레이스홀더를 실제 응답으로 교체
+        # 플레이스홀더를 실제 응답으로 교체 (사용 모델 정보 포함)
         response_content = (full or "_응답 없음_") + suffix
-        st.session_state.messages[_placeholder_idx] = {"role": "assistant", "content": response_content}
+        _used_model = client.model if hasattr(client, "model") else st.session_state.get("selected_model", "")
+        _model_type = "🔧 코드 모델" if _needs_code else "💬 대화 모델"
+        st.session_state.messages[_placeholder_idx] = {
+            "role": "assistant",
+            "content": response_content,
+            "model": _used_model,
+            "model_type": _model_type,
+        }
         save_history(st.session_state.current_chat_id, st.session_state.messages)
 
-        # 코드 블록 있으면 자동 실행
+        # 코드 블록 있으면 자동 실행 (단, st. 위젯 코드는 건너뜀 — 채팅 컨텍스트에서만 실행해야 함)
         codes = _extract_code(response_content)
-        if codes:
+        if codes and "st." not in codes[0]:
             msg_idx = len(st.session_state.messages) - 1
             with st.spinner("코드 자동 실행 중..."):
                 r, attempts, final_code = _execute_with_retry(codes[0])

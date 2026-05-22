@@ -133,7 +133,7 @@ components = [
     ("🤖 LLM 엔진", "tag-green", [
         "Ollama: 로컬/원격 서버에서 오픈소스 모델 실행",
         "OpenAI API: GPT-4o 등 클라우드 모델 연동",
-        "Google Gemini: OpenAI 호환 엔드포인트 사용",
+        "Google Gemini: API Key만 입력하면 바로 사용 가능",
         "스마트 라우팅: 질문 키워드 분석 후 대화 ↔ 코드 모델 자동 전환",
         "추천 모델: qwen3:32b (대화) + qwen2.5-coder:32b (코드)",
     ]),
@@ -209,6 +209,11 @@ with feat_cols[0]:
 **📥 앱 내 모델 다운로드**
 Ollama Hub의 모델을 앱 UI에서 직접 다운로드.
 실시간 프로그레스바로 진행 상황 표시.
+
+**🧪 Playground**
+인터랙티브 코드(`st.number_input`, `st.button` 등)를 직접 작성·실행하는 전용 환경.
+채팅에서 AI가 생성한 인터랙티브 코드는 원클릭으로 Playground로 전송 가능.
+`if __name__ == "__main__":` 패턴 포함 일반 Python 스크립트도 실행 지원.
 """)
 
 with feat_cols[1]:
@@ -240,7 +245,8 @@ llm-excel-studio/
 ├── pages/
 │   ├── 1_Files.py             # 파일 업로드·관리·미리보기
 │   ├── 2_Settings.py          # 모델 설정 및 Ollama 모델 다운로드
-│   └── 3_About.py             # 시스템 소개 (현재 페이지)
+│   ├── 3_About.py             # 시스템 소개 (현재 페이지)
+│   └── 4_Playground.py        # 인터랙티브 코드 실행 환경
 ├── core/
 │   ├── llm/
 │   │   ├── base.py            # LLM 추상 인터페이스

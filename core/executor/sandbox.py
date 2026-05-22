@@ -287,10 +287,12 @@ def execute(code: str, timeout: int = 30) -> ExecutionResult:
     saved: list[str] = []
     files = {f: read_file(f) for f in list_files() if read_file(f) is not None}
 
+    import streamlit as _st
     ns: dict = {
         "files": files,
         "pd": _PandasProxy(files),
         "np": np,
+        "st": _st,          # Streamlit 위젯 사용 가능 (st.number_input, st.button 등)
         "result": None,
         "__builtins__": _safe_builtins(),
     }
